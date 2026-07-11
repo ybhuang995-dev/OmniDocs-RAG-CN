@@ -1,13 +1,13 @@
 {
   "mcpServers": {
     "omnidocs-rag-cn": {
-      "command": "D:/Programs/Python/Python310/python",
+      "command": "python",
       "args": [
-        "E:/claude code大学习/中文化实践/OmniDocs-RAG-CN/server.py"
+        "<你的项目路径>/OmniDocs-RAG-CN/server.py"
       ],
       "env": {
-        "RAG_DOCS_PATH": "E:/claude code大学习",
-        "RAG_DB_PATH": "E:/claude code大学习/中文化实践/OmniDocs-RAG-CN/chroma_db"
+        "RAG_DOCS_PATH": "<你要索引的文档目录>",
+        "RAG_DB_PATH": "<你的项目路径>/OmniDocs-RAG-CN/chroma_db"
       }
     }
   }
