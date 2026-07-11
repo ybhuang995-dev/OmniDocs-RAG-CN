@@ -1,142 +1,87 @@
 <div align="center">
-  <h1>🧠 OmniDocs-RAG-CN</h1>
 
-<strong>Universal RAG Knowledge Base for AI Agents — with Native Chinese Support 🇨🇳</strong>
-<br/>
-<em>Index local files, websites, GitHub repos, npm/PyPI packages — then search them with hybrid AI-powered retrieval. All through your IDE chat. 100% local, one-command install.</em>
-<br/><br/>
+# 🧠 OmniDocs-RAG-CN
 
-<a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
-<a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"></a>
-<a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Server-brightgreen.svg" alt="MCP Server"></a>
-<a href="https://trychroma.com/"><img src="https://img.shields.io/badge/Vector_DB-Chroma-orange.svg" alt="Chroma DB"></a>
-<a href="https://huggingface.co/BAAI/bge-m3"><img src="https://img.shields.io/badge/🤗_Model-BGE--M3-yellow.svg" alt="HuggingFace"></a>
-<a href="README_CN.md"><img src="https://img.shields.io/badge/中文-README-red.svg" alt="中文"></a>
-<br/><br/>
+**开箱即用的 AI Agent 个人知识库 — 原生中文支持 🇨🇳**
 
-<a href="#-features">Features</a> •
-<a href="#-quickstart">Quickstart</a> •
-<a href="#️-architecture">Architecture</a> •
-<a href="#-mcp-tools">Tools</a> •
-<a href="#-chinese-support">Chinese Support</a> •
-<a href="#-faq">FAQ</a>
+*索引本地文件、网页、GitHub 仓库、npm/PyPI 包 → 混合 AI 检索引擎 → IDE 聊天框内直接搜索。100% 本地运行，一条命令安装。*
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/MCP-Server-brightgreen.svg)](https://modelcontextprotocol.io/)
+[![Chroma](https://img.shields.io/badge/Vector_DB-Chroma-orange.svg)](https://trychroma.com/)
+[![BGE-M3](https://img.shields.io/badge/🤗_Model-BGE--M3-yellow.svg)](https://huggingface.co/BAAI/bge-m3)
+
+[English](README_EN.md) | 中文
 
 </div>
 
 ---
 
-## ✨ Features
+## 缘起
 
-### 🔍 Search Pipeline
-- **Hybrid Search** — ChromaDB vector + BM25 keyword scoring fused via Reciprocal Rank Fusion (RRF, k=60)
-- **Cross-Encoder Reranking** — `BAAI/bge-reranker-v2-m3` rescores top candidates for surgical precision
-- **Query Expansion** — CN→EN + RU→EN synonym expansion for mixed-language documentation
-- **Result Deduplication** — removes near-duplicate chunks (>80% similarity threshold)
+最初只是想搭个个人知识库，但很快发现 Obsidian 对 Agent 并不友好——目录树、双向链接、全文搜索，这些为人设计的功能在 Agent 眼里只是一堆需要遍历的文件路径。Agent 要的不是"翻文件"，而是"语义检索"：用自然语言问一个问题，从知识库中召回最相关的片段，再基于这些片段生成回答。
 
-### 📁 Universal Source Ingestion
-- **40+ file formats** — `.md`, `.py`, `.js`, `.ts`, `.json`, `.yaml`, `.html`, `.csv`, and more
-- **Binary documents** — PDF, DOCX, XLSX, PPTX, Jupyter Notebooks (optional packages)
-- **Websites** — full async BFS crawler with boundary control, robots.txt, sitemap.xml
-- **GitHub repositories** — direct API tree walking
-- **npm / PyPI packages** — metadata + README extraction
-- **ZIP archives** — automatic extraction and indexing
-- **JS-rendered sites** — optional Playwright support for Docusaurus, GitBook, VitePress
+于是自然想到了向量数据库。把个人文档向量化存起来，Agent 用向量相似度来"找东西"，而不是翻文件夹。但翻遍 GitHub，没有一个现成的工具能直接做到这一点——要么缺 MCP 接口，要么对中文支持几乎为零（分句错、分词烂、BM25 失效）。
 
-### ⚡ Performance
-- **GPU acceleration** — auto-detects CUDA (RTX 3080 = ~11x speedup)
-- **Incremental indexing** — MD5 file hashing, only re-indexes changed files
-- **Code-aware chunking** — Python files split by class/function via AST, JS/TS via regex
-- **Heading-aware chunking** — Markdown split at `##`/`###` with 2-sentence overlap
-- **BM25 persistence** — survives server restarts via pickle cache
+所以基于 [OmniDocs-RAG v3.4](https://github.com/ElvinBayramov/OmniDocs-RAG) 做了中文化适配和 MCP 接口封装，改出了 OmniDocs-RAG-CN。
 
-### 🛠️ Management
-- **Multi-collection** — separate knowledge bases per project
-- **Auto-categorization** — YAML frontmatter → H1 heading → filename fallback
-- **File Watcher** — auto-reindex on filesystem changes (watchdog, 2s debounce)
-- **Admin tools** — list, remove, delete, reindex — all through chat
-- **100% Local & Free** — no API keys, no Docker, no monthly fees
+最终的使用场景是这样的：
+
+**人**通过 IDE（Claude Code / Cursor）跟 Agent 对话，问一个问题；**Agent** 通过 MCP 协议调用 OmniDocs-RAG-CN 的 `search_docs`，在个人向量知识库中做混合检索（语义 + 关键词 + 重排序），拿到最相关的文档片段后组织回答。
+
+人和 Agent 从两个"端口"访问同一个个人数据库：人看到的是 IDE 聊天窗口里的自然语言回答，Agent 看到的是 chroma_db 里经过向量化的知识片段。人的入口是对话，Agent 的入口是 MCP 工具调用——同一份知识，两种访问方式。
+
+这就是"人与 Agent 协作"的知识管理：不是人翻了文件喂给 Agent，也不是 Agent 替代人去读文档；而是人决定"哪些知识值得存"，Agent 负责"在需要的时候精准找到"，人再做最终的判断和创造。知识库从一个人的第二大脑，变成了人和 Agent 共享的外部记忆。
 
 ---
 
-## 🏗️ Architecture
+## 人-Agent 协作架构
 
-```mermaid
-flowchart TD
-    Q(["🔍 User Query"])
-
-    Q --> QE
-    subgraph EXPAND["📝 Stage 0 — Query Expansion"]
-        QE["RU→EN Synonyms<br>(up to 3 variations)"]
-    end
-
-    QE --> VS
-    QE --> BM
-
-    subgraph HYBRID["⚡ Stage 1 — Hybrid Retrieval"]
-        VS["🧠 Vector Search<br>(ChromaDB + bge-m3)"]
-        BM["📝 Keyword Search<br>(BM25 Okapi)"]
-    end
-
-    VS --> RRF
-    BM --> RRF
-
-    subgraph FUSION["🔀 Stage 2 — Fusion"]
-        RRF["Reciprocal Rank Fusion<br>(k=60)"]
-    end
-
-    RRF --> CE
-
-    subgraph RERANK["🎯 Stage 3 — Reranking"]
-        CE["Cross-Encoder<br>bge-reranker-v2-m3"]
-    end
-
-    CE --> DD
-
-    subgraph DEDUP["🧹 Stage 4 — Dedup"]
-        DD["Remove >80%<br>similar results"]
-    end
-
-    DD --> OUT
-
-    subgraph OUTPUT["📋 Stage 5 — Result"]
-        OUT["Top-N Documents<br>with Breadcrumbs"]
-    end
-
-    style Q fill:#6366f1,color:#fff,stroke:#4338ca
-    style EXPAND fill:#0f172a,color:#e2e8f0,stroke:#334155
-    style HYBRID fill:#0f172a,color:#e2e8f0,stroke:#334155
-    style FUSION fill:#0f172a,color:#e2e8f0,stroke:#334155
-    style RERANK fill:#0f172a,color:#e2e8f0,stroke:#334155
-    style DEDUP fill:#0f172a,color:#e2e8f0,stroke:#334155
-    style OUTPUT fill:#0f172a,color:#e2e8f0,stroke:#334155
-    style QE fill:#581c87,color:#e9d5ff,stroke:#9333ea
-    style VS fill:#1e40af,color:#bfdbfe,stroke:#3b82f6
-    style BM fill:#065f46,color:#a7f3d0,stroke:#10b981
-    style RRF fill:#7c3aed,color:#ede9fe,stroke:#8b5cf6
-    style CE fill:#b45309,color:#fef3c7,stroke:#f59e0b
-    style DD fill:#0e7490,color:#cffafe,stroke:#06b6d4
-    style OUT fill:#1e3a5f,color:#bae6fd,stroke:#38bdf8
+```
+┌─────────────────────────────────────────────────────────┐
+│                      人 👤                              │
+│   IDE 聊天框                                            │
+│   "帮我查一下认证逻辑怎么实现的？"                          │
+│   → 看到自然语言回答，做决策、创作                          │
+└──────────────────────┬──────────────────────────────────┘
+                       │ 自然语言对话
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│                    Agent 🤖                              │
+│   Claude Code / Cursor 等                                │
+│   → 理解问题 → 调 MCP 工具 → 综合回答                     │
+└──────────────────────┬──────────────────────────────────┘
+                       │ MCP 协议（search_docs）
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│               OmniDocs-RAG-CN                            │
+│   ┌───────────────────────────────────────────────┐     │
+│   │  混合检索引擎                                    │     │
+│   │  向量语义 + BM25 关键词(jieba) + RRF 融合        │     │
+│   │  + Cross-Encoder 重排序 + 去重                   │     │
+│   └───────────────────────────────────────────────┘     │
+│                         │                                │
+│                         ▼                                │
+│   ┌───────────────────────────────────────────────┐     │
+│   │  ChromaDB 向量数据库 (chroma_db/)               │     │
+│   │  你的文档 → 向量化 → 语义可检索                   │     │
+│   └───────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### How It Works
-
-1. **Query Expansion** — generates query variations with CN→EN and RU→EN programming synonyms
-2. **Hybrid Retrieval** — searches by semantic meaning (`bge-m3`, 8192 tokens) and exact keywords (BM25 + jieba Chinese tokenization) simultaneously
-3. **Reciprocal Rank Fusion** — mathematically combines ranks from both engines
-4. **Cross-Encoder Reranking** — `bge-reranker-v2-m3` deeply computes relevance for top candidates
-5. **Deduplication** — removes near-identical results
-6. **Structured Output** — results returned with breadcrumbs (e.g., `README.md > Quickstart > Installation`)
+> 两个端口，同一份知识。人从对话进去，Agent 从 MCP 进去。
 
 ---
 
-## 🚀 Quickstart
+## 🚀 快速开始
 
-### 1. Prerequisites
+### 1. 环境要求
 
-- Python 3.10+ (Tested on 3.13)
+- Python 3.10+
 - `git`
 
-### 2. Install
+### 2. 一键安装
 
 ```bash
 git clone https://github.com/ybhuang995-dev/OmniDocs-RAG-CN.git
@@ -144,176 +89,149 @@ cd OmniDocs-RAG-CN
 python install.py
 ```
 
-The installer handles everything: pip dependencies, GPU detection + PyTorch install, AI model download (~2.3GB, one-time), and auto-configures your IDE's MCP connection.
+`install.py` 自动完成一切：pip 依赖安装 → GPU 检测 + PyTorch 安装 → AI 模型下载（~2.3GB，仅首次）→ IDE 的 MCP 连接自动配置。
 
-> **⚠️ Enable GPU Acceleration (Crucial for Speed):**
-> By default, `pip` may install the CPU-only version of PyTorch on Windows. To unlock your NVIDIA GPU, run:
-> ```bash
-> pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 --upgrade --force-reinstall
-> ```
+### 3. 使用
 
-### 3. Configure (if manual)
-
-Add to your IDE's MCP config (`mcp_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "markdown-rag": {
-      "command": "python",
-      "args": ["C:\\path\\to\\OmniDocs-RAG\\server.py"],
-      "env": {
-        "RAG_DOCS_PATH": "C:\\path\\to\\your\\docs",
-        "RAG_DEVICE": "cuda"
-      }
-    }
-  }
-}
-```
-
-### 4. Use
-
-Just talk to your AI assistant:
+直接在 IDE 聊天框里说人话：
 
 ```
-> Index my project docs
-> Search: how does authentication work?
-> Index the FastAPI documentation from https://fastapi.tiangolo.com
-> Add the langchain repo: github://langchain-ai/langchain/docs
+帮我索引我的文档目录
+搜索：认证逻辑怎么实现的？
+把 https://fastapi.tiangolo.com 的文档也加进知识库
+用 rag_status 看看知识库状态
 ```
 
-The AI calls the MCP tools automatically — no UI, no buttons, just chat.
+Agent 自动调用 MCP 工具，不需要你点任何按钮。
 
 ---
 
-## 🛠️ MCP Tools
+## ✨ 功能特性
 
-| Tool | Description |
-|---|---|
-| `index_documents(path, collection)` | Index local files (40+ formats, incremental) |
-| `index_url(uri, collection, ...)` | Index websites, GitHub, npm, PyPI, ZIP |
-| `search_docs(query, n, category, filename, collection)` | Hybrid search with reranking |
-| `rag_status(collection)` | Full system status: models, GPU, BM25, chunks |
-| `list_collections()` | List all knowledge base collections |
-| `list_indexed_files(collection)` | List files in a collection |
-| `remove_source(filename, collection)` | Remove a file from the index |
-| `delete_collection(name, confirm)` | Delete an entire collection |
-| `reindex_collection(path, collection)` | Force full rebuild |
+### 🔍 混合搜索管道
 
-### `index_url()` — Universal Source Ingestion
+| 阶段 | 技术 | 说明 |
+|------|------|------|
+| 查询扩展 | CN→EN 同义词映射 | 17 组中文→英文编程同义词，提升混合文档召回率 |
+| 向量搜索 | ChromaDB + bge-m3 | 1024 维语义向量，支持 100+ 语言 |
+| 关键词搜索 | BM25 + jieba 分词 | 中文用结巴分词，英文保持空格切分 |
+| 融合排序 | RRF (k=60) | 向量排名 + 关键词排名数学融合 |
+| 重排序 | bge-reranker-v2-m3 | 交叉编码器对候选集精确打分 |
+| 去重 | >80% 相似度剔除 | 移除近重复结果 |
+
+### 📁 多源摄入
+
+- **40+ 文件格式** — `.md` `.py` `.js` `.pdf` `.docx` `.xlsx` `.pptx` 等
+- **网页** — 异步 BFS 爬虫，支持 robots.txt、sitemap.xml
+- **GitHub 仓库** — `github://owner/repo` 直接抓取
+- **npm / PyPI / ZIP** — `npm://package` `pypi://package` `file:///path.zip`
+- **JS 渲染页面** — 可选 Playwright 支持
+
+### ⚡ 性能
+
+- **GPU 加速** — CUDA 自动检测（索引速度提升 ~11x）
+- **增量索引** — MD5 哈希，只处理变化的文件
+- **BM25 持久化** — pickle 缓存，服务重启即恢复
+
+### 🛠️ 管理
+
+- **多集合** — 不同项目用不同知识库
+- **自动分类** — YAML frontmatter → H1 标题 → 文件名
+- **文件监控** — watchdog 监听变动，自动增量索引
+- **100% 本地** — 无 API Key、无云服务、无月费
+
+---
+
+## 🛠️ MCP 工具（9 个）
+
+| 工具 | 说明 |
+|------|------|
+| `index_documents(path, collection)` | 索引本地文件（40+ 格式，增量索引） |
+| `index_url(uri, collection, ...)` | 索引网页、GitHub、npm、PyPI、ZIP |
+| `search_docs(query, n, ...)` | 混合搜索（向量 + BM25 + 重排序） |
+| `rag_status(collection)` | 系统状态：模型、GPU、BM25、分块数 |
+| `list_collections()` | 列出所有知识库集合 |
+| `list_indexed_files(collection)` | 列出集合中已索引的文件 |
+| `remove_source(filename, collection)` | 从索引中删除指定文件 |
+| `delete_collection(name, confirm)` | 删除整个集合 |
+| `reindex_collection(path, collection)` | 强制全量重建索引 |
+
+### `index_url()` 示例
 
 ```python
-# Websites (async BFS crawler)
+# 网页（异步 BFS 爬虫）
 index_url("https://docs.python.org/3/library/asyncio.html")
 
-# GitHub repositories
+# GitHub 仓库
 index_url("github://tiangolo/fastapi/docs")
 
-# npm packages
+# npm 包
 index_url("npm://axios@1.6")
 
-# PyPI packages
+# PyPI 包
 index_url("pypi://fastapi")
 
-# ZIP archives
+# ZIP 压缩包
 index_url("file:///path/to/docs.zip")
 ```
 
 ---
 
-## ⚙️ Configuration
+## 🇨🇳 中文适配（7 处改动）
 
-All settings via environment variables:
+| 优先级 | 文件 | 改动 |
+|--------|------|------|
+| P0 | `parsers.py` | 分句正则补中文标点（`。！？；`），空格改为可选 |
+| P0 | `parsers.py` | 语言感知分块：中文按 2000 字符、英文按 700 词 |
+| P0 | `store.py` | 网页重爬：按 source URL 清旧块再写入，防僵尸数据 |
+| P1 | `search_engine.py` | BM25：中文用 **jieba** 分词替换空格切分 |
+| P1 | `crawler.py` | 网页提取：新增 **Mozilla Readability** 为策略 1（语言无关） |
+| P2 | `search_engine.py` | 查询扩展：17 组中文→英文同义词映射 |
+| P3 | `parsers.py` | 重叠量：中文取前块最后 150 字，英文保持 2 句 |
 
-| Variable | Default | Description |
-|---|---|---|
-| `RAG_DOCS_PATH` | parent directory | Folder to scan for files |
-| `RAG_DB_PATH` | `./chroma_db` | ChromaDB storage location |
-| `RAG_DEVICE` | `auto` | `cuda` / `cpu` / `auto` |
-| `RAG_EMBED_MODEL` | `BAAI/bge-m3` | Embedding model |
-| `RAG_RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | Cross-Encoder model |
-| `RAG_WATCH_PATH` | — | Directory to watch for auto-reindex |
-| `RAG_WATCH_COLLECTION` | `docs_v4` | Collection for file watcher |
-| `GITHUB_TOKEN` | — | GitHub API token (higher rate limits) |
-
----
-
-## 📁 Supported Formats
-
-**Text (no extra deps):**
-`.md` `.txt` `.rst` `.log` `.html` `.htm`
-
-**Code (wrapped in markdown):**
-`.py` `.js` `.ts` `.jsx` `.tsx` `.css` `.java` `.go` `.rs` `.c` `.cpp` `.rb` `.php` `.swift` `.kt` `.lua` `.sh`
-
-**Config:**
-`.json` `.yaml` `.yml` `.toml` `.xml` `.csv` `.ini` `.cfg`
-
-**Binary (optional packages):**
-
-| Format | Install |
-|---|---|
-| PDF | `pip install pypdf` |
-| Word (.docx) | `pip install python-docx` |
-| Excel (.xlsx) | `pip install openpyxl` |
-| PowerPoint (.pptx) | `pip install python-pptx` |
-| Jupyter (.ipynb) | built-in |
+> 所有改动在代码中以 `# [中文化]` 注释标记。详见 [CHANGES_CN.md](CHANGES_CN.md)。
 
 ---
 
-## 🏷️ Auto-Categorization
+## ⚙️ 环境变量
 
-Every file gets a category automatically (no manual tagging needed):
-
-| Priority | Source | Example |
-|---|---|---|
-| 1 | YAML frontmatter `category:` | `category: architecture` → `architecture` |
-| 2 | First `# Heading` in the file | `# API Reference` → `api reference` |
-| 3 | Filename stem | `system_design.md` → `system design` |
-
----
-
-## 🇨🇳 Chinese Support (OmniDocs-RAG-CN)
-
-This fork adds native Chinese language support with 7 targeted improvements across the search pipeline:
-
-| Priority | Module | Change |
-|----------|--------|--------|
-| P0 | `parsers.py` | Chinese sentence splitting (`。！？；`) + language-aware chunking (2000 chars vs 700 words) |
-| P0 | `store.py` | Web re-crawl deduplication by source URL |
-| P1 | `search_engine.py` | BM25 tokenization via **jieba** (Chinese word segmentation) |
-| P1 | `crawler.py` | **Mozilla Readability** as primary extraction strategy (language-agnostic) |
-| P2 | `search_engine.py` | CN→EN query expansion (17 synonym groups) |
-| P3 | `parsers.py` | Chinese chunk overlap (150 chars vs 2 sentences) |
-
-All changes are marked with `# [中文化]` comments in the source code. See [CHANGES_CN.md](CHANGES_CN.md) and [README_CN.md](README_CN.md) for details.
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `RAG_DOCS_PATH` | server.py 父目录 | 扫描的文档目录 |
+| `RAG_DB_PATH` | `./chroma_db` | ChromaDB 持久化路径 |
+| `RAG_DEVICE` | `auto` | `cuda` / `cpu` / `auto`（有 CUDA 健康检查） |
+| `RAG_EMBED_MODEL` | `BAAI/bge-m3` | 嵌入模型 |
+| `RAG_RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | 交叉编码器重排序模型 |
+| `RAG_DASHBOARD` | 不启用 | 设为 `true` 开启 Web 面板（端口 6280） |
+| `RAG_WATCH_PATH` | 不启用 | 文件变动自动重索引 |
+| `GITHUB_TOKEN` | — | GitHub API 令牌（提升速率限制） |
 
 ---
 
-## ❓ FAQ
+## ❓ 常见问题
 
-**Q: Does this send my data anywhere?**
-A: No. 100% local. Models download once from HuggingFace, then everything runs offline. No API keys, no cloud.
+**Q: 数据会发送到外部吗？**
+A: 不会。100% 本地运行。模型从 HuggingFace 下载一次后离线使用，无 API Key，无云服务。
 
-**Q: Do I need a GPU?**
-A: No, but it helps. CPU works fine for search (~200ms). GPU (CUDA) accelerates indexing ~11x. Set `RAG_DEVICE=cuda`.
+**Q: 需要 GPU 吗？**
+A: 不必须，但有最好。CPU 搜索约 200ms，GPU 索引加速约 11x。设置 `RAG_DEVICE=cuda` 开启。
 
-**Q: How do I update the index?**
-A: The server uses incremental indexing — only changed files are re-indexed. Just call `index_documents()` again, or enable the file watcher with `RAG_WATCH_PATH`.
+**Q: 如何更新索引？**
+A: 增量索引——只有变化的文件会重新处理。再调一次 `index_documents()` 即可，或开启文件监控自动更新。
 
-**Q: Why is the first search slow?**
-A: The Cross-Encoder (~1.1GB) loads lazily on first query. All subsequent searches are instant.
+**Q: 首次搜索为什么慢？**
+A: Cross-Encoder（~1.1GB）在首次搜索时惰性加载。后续搜索即时响应。
 
-**Q: Does it support Chinese?**
-A: Yes! This is the main purpose of this fork. Native Chinese tokenization (jieba), sentence splitting, chunking, and CN→EN query expansion. bge-m3 also supports 100+ other languages.
+**Q: 支持中文吗？**
+A: 这就是做这个项目的原因。原生 jieba 分词、中文分句、中文分块、CN→EN 查询扩展。bge-m3 还支持 100+ 其他语言。
 
-**Q: Can I have separate knowledge bases per project?**
-A: Yes. Use the `collection` parameter: `index_documents(path, collection="my-project")`, then `search_docs(query, collection="my-project")`.
+**Q: 能建多个知识库吗？**
+A: 可以。用 `collection` 参数区分：`index_documents(path, collection="项目A")`，搜索时指定 `collection="项目A"`。
 
 ---
 
-## 📄 License
+## 📄 许可证
 
-Licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.
+基于 **Apache License 2.0** 开源。详见 [LICENSE](LICENSE)。
 
-Original project: [ElvinBayramov/OmniDocs-RAG](https://github.com/ElvinBayramov/OmniDocs-RAG)
+原项目：[ElvinBayramov/OmniDocs-RAG](https://github.com/ElvinBayramov/OmniDocs-RAG)

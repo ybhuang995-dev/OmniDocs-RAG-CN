@@ -67,8 +67,8 @@ Thumbs.db
 #   mcp_config_cn.json     ← MCP 配置模板（中文版）
 #   mcp_config_example.json← MCP 配置模板（英文原版）
 #   static/index.html      ← Web 面板前端
-#   README.md              ← 项目说明（英文）
-#   README_CN.md           ← 项目说明（中文）
+#   README.md              ← 项目说明（中文主体）
+#   README_EN.md           ← English README
 #   CLAUDE.md              ← Claude Code 开发指引
 #   CHANGES_CN.md          ← 中文适配改动说明
 #   部署指南.md             ← 用户部署指南
