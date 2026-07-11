@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+        "markdown-rag": {
+            "command": "python",
+            "args": [
+                "C:\\path\\to\\OmniDocs-RAG\\server.py"
+            ]
+        }
+    }
+}

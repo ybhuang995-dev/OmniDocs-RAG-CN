@@ -1,0 +1,76 @@
+# ──────────────────────────────
+# ChromaDB vector index (auto-generated, do NOT commit)
+chroma_db/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test/debug artifacts
+test_out.txt
+test_out2.txt
+test_rag.py
+tests/
+.pytest_cache/
+run_test.bat
+GEMINI.md
+test_search.md
+test_server.py
+diff_output.txt
+error_trace.txt
+latest_diff.txt
+result.txt
+test_docs/
+
+# Local data cache
+data/
+.env
+
+# Generated docs (users only need README.md)
+README.pdf
+neurodocks/
+CHANGELOG.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.agent/
+
+# ──────────────────────────────
+# FILES TO COMMIT (public repo):
+#   server.py              ← MCP 服务器入口（9 个工具）
+#   parsers.py             ← 文档解析 + 分块
+#   search_engine.py       ← 混合检索引擎（BM25 + Cross-Encoder）
+#   store.py               ← ChromaDB 数据层
+#   crawler.py             ← 网页爬取
+#   watcher.py             ← 文件监控
+#   dashboard.py           ← Web 管理面板
+#   exceptions.py          ← 自定义异常
+#   install.py             ← 🔑 一键安装脚本
+#   manage.py              ← CLI 命令行工具
+#   requirements.txt       ← pip 依赖清单
+#   mcp_config_cn.json     ← MCP 配置模板（中文版）
+#   mcp_config_example.json← MCP 配置模板（英文原版）
+#   static/index.html      ← Web 面板前端
+#   README.md              ← 项目说明（英文）
+#   README_CN.md           ← 项目说明（中文）
+#   CLAUDE.md              ← Claude Code 开发指引
+#   CHANGES_CN.md          ← 中文适配改动说明
+#   部署指南.md             ← 用户部署指南
+#   LICENSE                ← Apache 2.0
+# ──────────────────────────────
