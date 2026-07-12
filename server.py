@@ -108,7 +108,10 @@ def _detect_device() -> str:
         from sentence_transformers import SentenceTransformer
 
         def _cuda_probe():
-            model = SentenceTransformer(EMBED_MODEL, device="cuda")
+            model = SentenceTransformer(
+                EMBED_MODEL, device="cuda",
+                local_files_only=_OFFLINE,
+            )
             model.encode(["health check"], normalize_embeddings=True)
             return True
 
@@ -130,6 +133,12 @@ def _detect_device() -> str:
 
 DEVICE = _detect_device()
 
+# Detect offline mode (user wants to skip all network requests)
+_OFFLINE = (
+    os.environ.get("HF_HUB_OFFLINE") == "1"
+    or os.environ.get("TRANSFORMERS_OFFLINE") == "1"
+)
+
 
 # ──────────────────────────────────────────────
 # ChromaDB + Models setup
@@ -139,7 +148,11 @@ client = chromadb.PersistentClient(path=DB_PATH)
 # GPU-aware embedding function with normalization (required for bge-m3)
 try:
     from sentence_transformers import SentenceTransformer
-    _embed_model = SentenceTransformer(EMBED_MODEL, device=DEVICE)
+    _embed_model = SentenceTransformer(
+        EMBED_MODEL,
+        device=DEVICE,
+        local_files_only=_OFFLINE,
+    )
 
     class _EmbeddingFunction:
         """ChromaDB-compatible embedding function with normalization + optional GPU."""
@@ -167,6 +180,10 @@ try:
     embed_fn = _EmbeddingFunction()
 except Exception:
     # Fallback: ChromaDB built-in (no normalization, CPU only)
+    # ChromaDB's SentenceTransformerEmbeddingFunction doesn't accept local_files_only,
+    # so we rely on TRANSFORMERS_OFFLINE=1 environment variable for offline mode.
+    if _OFFLINE:
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
     embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name=EMBED_MODEL
     )

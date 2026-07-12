@@ -3,8 +3,10 @@ OmniDocs-RAG-CN — Quick Install Script
 Installs dependencies, downloads models, and auto-configures your IDE.
 
 Usage:
-    python install.py            # detect existing deps, skip what's already installed
-    python install.py --force    # reinstall everything from scratch
+    python install.py              # detect existing deps, skip what's already installed
+    python install.py --force      # reinstall everything from scratch
+    python install.py --yes        # skip all interactive prompts (CI / scripted deploy)
+    python install.py --force --yes
 """
 
 import sys
@@ -14,6 +16,13 @@ import subprocess
 import platform
 import importlib.metadata
 from pathlib import Path
+
+# Fix Windows GBK terminal UnicodeEncodeError (e.g. ✓, ✗, 🎉)
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
 
 REQUIRED_PYTHON = (3, 10)
 
@@ -286,8 +295,66 @@ def try_install_torch_cuda(status, force=False):
 # step 3: AI models
 # ──────────────────────────────────────────────
 
+def _try_download_hf(model_id, status, force):
+    """Try downloading a model from HuggingFace via sentence-transformers.
+
+    Returns True on success, False on failure.
+    """
+    if status["models"].get(model_id, False) and not force:
+        print(f"        {model_id} — cached, skipping.")
+        return True
+
+    from sentence_transformers import SentenceTransformer, CrossEncoder
+
+    if "reranker" in model_id.lower():
+        CrossEncoder(model_id)
+    else:
+        SentenceTransformer(model_id)
+    return True
+
+
+def _try_download_modelscope(model_id, cache_dir):
+    """Try downloading a model from ModelScope (mirror accessible from mainland China).
+
+    Downloads the model from modelscope.cn and symlinks/copies it into the
+    HuggingFace cache directory so sentence-transformers can find it.
+
+    Returns True on success, False on failure.
+    """
+    try:
+        from modelscope import snapshot_download
+    except ImportError:
+        print("        modelscope not installed, trying pip install modelscope...")
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "modelscope", "--quiet"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print("        Failed to install modelscope.")
+            return False
+        from modelscope import snapshot_download
+
+    try:
+        print(f"        Downloading from ModelScope: {model_id}...", flush=True)
+        local_path = snapshot_download(model_id, cache_dir=cache_dir)
+        if local_path:
+            print(f"        Done. -> {local_path}")
+            return True
+    except Exception as e:
+        print(f"        ModelScope download failed: {e}")
+    return False
+
+
+def _hf_cache_dir():
+    """Return the HuggingFace cache directory."""
+    return os.path.join(str(Path.home()), ".cache", "huggingface", "hub")
+
+
 def download_models(status, force=False):
-    """Download AI models from HuggingFace. Skips cached models unless --force."""
+    """Download AI models. Tries HuggingFace first, falls back to ModelScope mirror.
+
+    Skips cached models unless --force.
+    """
     print("\n[3/4] AI models...")
 
     both_cached = all(status["models"].values())
@@ -309,32 +376,76 @@ def download_models(status, force=False):
         print(f"    - {model_id}  [{label}{skip_mark}]")
 
     print()
-    print("  ⚠  HuggingFace (huggingface.co) 在国内可能需要代理。")
-    print("     如遇连接错误，请配置代理后重试。")
+    print("  Download source priority: HuggingFace -> ModelScope (国内镜像)")
     print()
 
+    # --- Try HuggingFace first ---
+    hf_ok = True
     try:
         os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "0"
-        from sentence_transformers import SentenceTransformer, CrossEncoder
 
-        # Only download models that aren't cached (or all if --force)
+        print("  [1/2] Trying HuggingFace...", flush=True)
         if not status["models"].get(EMBED_MODEL, False) or force:
-            print(f"  [1/2] Downloading {EMBED_MODEL}...", flush=True)
-            SentenceTransformer(EMBED_MODEL)
-            print("        Done.")
+            print(f"        Downloading {EMBED_MODEL}...", flush=True)
+            _try_download_hf(EMBED_MODEL, status, force)
         else:
-            print(f"  [1/2] {EMBED_MODEL} — cached, skipping.")
+            print(f"        {EMBED_MODEL} — cached, skipping.")
 
         if not status["models"].get(RERANK_MODEL, False) or force:
-            print(f"  [2/2] Downloading {RERANK_MODEL}...", flush=True)
-            CrossEncoder(RERANK_MODEL)
-            print("        Done.")
+            print(f"        Downloading {RERANK_MODEL}...", flush=True)
+            _try_download_hf(RERANK_MODEL, status, force)
         else:
-            print(f"  [2/2] {RERANK_MODEL} — cached, skipping.")
+            print(f"        {RERANK_MODEL} — cached, skipping.")
+
+        print("        HuggingFace download complete.")
 
     except Exception as e:
-        print(f"\n  ⚠  WARNING: Could not download models: {e}")
-        print("  Models will be downloaded on first server start instead.")
+        hf_ok = False
+        print(f"        HuggingFace failed: {e}")
+        print()
+        print("  [2/2] Falling back to ModelScope (国内镜像)...")
+
+        hf_cache = _hf_cache_dir()
+        ms_ok = True
+        for model_id, label in [(EMBED_MODEL, "嵌入"), (RERANK_MODEL, "重排序")]:
+            if status["models"].get(model_id, False) and not force:
+                print(f"        {model_id} — cached, skipping.")
+                continue
+            print(f"        Downloading {model_id} [{label}]...", flush=True)
+            if not _try_download_modelscope(model_id, hf_cache):
+                ms_ok = False
+
+        if ms_ok:
+            print("        ModelScope download complete.")
+        else:
+            print()
+            print("  ╔══════════════════════════════════════════════════════════╗")
+            print("  ║  ⚠  自动下载失败 — 请手动下载模型                      ║")
+            print("  ╠══════════════════════════════════════════════════════════╣")
+            print("  ║                                                        ║")
+            print("  ║  方法 1: 配置代理后重试                                 ║")
+            print("  ║    set HTTP_PROXY=http://127.0.0.1:7890                 ║")
+            print("  ║    set HTTPS_PROXY=http://127.0.0.1:7890                ║")
+            print("  ║    python install.py --force                            ║")
+            print("  ║                                                        ║")
+            print("  ║  方法 2: 从 ModelScope 手动下载                         ║")
+            print("  ║    https://modelscope.cn/models/BAAI/bge-m3             ║")
+            print("  ║    https://modelscope.cn/models/BAAI/bge-reranker-v2-m3 ║")
+            print("  ║    下载后放入:                                          ║")
+            print(f"  ║    {hf_cache}                                          ║")
+            print("  ║                                                        ║")
+            print("  ╚══════════════════════════════════════════════════════════╝")
+            return
+
+    # If HuggingFace succeeded, we're done
+    if hf_ok:
+        return
+
+    # Verify models are now cached
+    for model_id in [EMBED_MODEL, RERANK_MODEL]:
+        if not _model_cached(model_id):
+            print(f"  [!] Warning: {model_id} may not be cached correctly.")
+            print(f"       server.py will attempt to download on first start.")
 
 
 # ──────────────────────────────────────────────
@@ -381,8 +492,13 @@ def _inject_into_config(config_path, entry):
     return True
 
 
-def auto_configure(status):
-    """Auto-detect IDEs and offer to inject MCP config. Skips if already configured."""
+def auto_configure(status, yes_mode=False):
+    """Auto-detect IDEs and offer to inject MCP config. Skips if already configured.
+
+    Args:
+        status: scan_environment() result dict
+        yes_mode: if True, skip all interactive prompts (CI / scripted deploy)
+    """
     print("\n[4/4] Configuring MCP connection...")
 
     entry = _build_server_entry()
@@ -412,15 +528,29 @@ def auto_configure(status):
                     print(f"  [!!] {ide} — 'omnidocs-rag-cn' 已存在但指向不同路径:")
                     print(f"       当前: {existing_path}")
                     print(f"       新的: {server_path}")
-                    answer = input(f"       覆盖? (y/N): ").strip().lower()
-                    if answer != "y":
-                        print(f"       跳过.")
-                        continue
+                    if yes_mode:
+                        print(f"       --yes: 自动覆盖.")
+                    else:
+                        try:
+                            answer = input(f"       覆盖? (y/N): ").strip().lower()
+                        except (EOFError, OSError):
+                            print("       非交互环境，跳过。使用 --yes 强制覆盖。")
+                            continue
+                        if answer != "y":
+                            print(f"       跳过.")
+                            continue
                 else:
-                    answer = input(f"  添加 'omnidocs-rag-cn' 到 {ide}? (Y/n): ").strip().lower()
-                    if answer == "n":
-                        print(f"       跳过.")
-                        continue
+                    if yes_mode:
+                        print(f"  [--yes] 添加 'omnidocs-rag-cn' 到 {ide}...")
+                    else:
+                        try:
+                            answer = input(f"  添加 'omnidocs-rag-cn' 到 {ide}? (Y/n): ").strip().lower()
+                        except (EOFError, OSError):
+                            print("       非交互环境，跳过。使用 --yes 强制覆盖。")
+                            continue
+                        if answer == "n":
+                            print(f"       跳过.")
+                            continue
 
                 _inject_into_config(path, entry)
                 print(f"  [OK] {ide} — 配置已更新!")
@@ -486,13 +616,19 @@ def auto_configure(status):
 
 if __name__ == "__main__":
     force = "--force" in sys.argv
+    yes_mode = "--yes" in sys.argv or "-y" in sys.argv
 
     print("=" * 60)
     print("  OmniDocs-RAG-CN — 一键安装")
     print("=" * 60)
 
     if force:
-        print("\n  ⚡ --force 模式: 将强制重装所有依赖\n")
+        print("\n  ⚡ --force 模式: 将强制重装所有依赖")
+    if yes_mode:
+        print("  🤖 --yes 模式: 跳过所有交互确认")
+
+    if force or yes_mode:
+        print()
 
     print("\n[0/4] 检测已安装的依赖...")
     status, missing = scan_environment()
@@ -504,7 +640,7 @@ if __name__ == "__main__":
         print("\n  如需强制重装: python install.py --force")
         print()
         # Still run MCP config check
-        auto_configure(status)
+        auto_configure(status, yes_mode=yes_mode)
         sys.exit(0)
 
     print(f"\n  {'─' * 40}")
@@ -518,4 +654,4 @@ if __name__ == "__main__":
     install_packages(status, force=force)
     try_install_torch_cuda(status, force=force)
     download_models(status, force=force)
-    auto_configure(status)
+    auto_configure(status, yes_mode=yes_mode)
