@@ -83,8 +83,8 @@ This is "Human-Agent collaboration" in knowledge management: not the human brows
 ### 2. Install
 
 ```bash
-git clone https://github.com/ybhuang995-dev/OmniDocs-RAG-CN.git
-cd OmniDocs-RAG-CN
+git clone https://github.com/ybhuang995-dev/personal-data-for-agents.git
+cd personal-data-for-agents
 python install.py
 ```
 

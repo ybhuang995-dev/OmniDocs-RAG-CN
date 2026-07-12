@@ -84,8 +84,8 @@
 ### 2. 一键安装
 
 ```bash
-git clone https://github.com/ybhuang995-dev/OmniDocs-RAG-CN.git
-cd OmniDocs-RAG-CN
+git clone https://github.com/ybhuang995-dev/personal-data-for-agents.git
+cd personal-data-for-agents
 python install.py
 ```
 
