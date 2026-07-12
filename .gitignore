@@ -37,6 +37,9 @@ test_docs/
 data/
 .env
 
+# Claude Code guidance (local dev only, not for public repo)
+CLAUDE.md
+
 # Generated docs (users only need README.md)
 README.pdf
 neurodocks/
@@ -69,7 +72,6 @@ Thumbs.db
 #   static/index.html      ← Web 面板前端
 #   README.md              ← 项目说明（中文主体）
 #   README_EN.md           ← English README
-#   CLAUDE.md              ← Claude Code 开发指引
 #   CHANGES_CN.md          ← 中文适配改动说明
 #   部署指南.md             ← 用户部署指南
 #   LICENSE                ← Apache 2.0
